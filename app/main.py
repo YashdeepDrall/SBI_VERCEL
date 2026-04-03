@@ -8,7 +8,7 @@ from app.ml.vector_store import load_sbi_documents, rebuild_vector_index
 
 
 app = FastAPI(title="SBI Fraud Investigation Assistant")
-UI_FILE = Path(__file__).resolve().parents[1] / "public" / "index.html"
+UI_FILE = Path(__file__).resolve().parent / "ui" / "index.html"
 
 
 @app.on_event("startup")
