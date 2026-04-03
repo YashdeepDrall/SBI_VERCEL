@@ -72,5 +72,4 @@ How to deploy on Vercel:
 
 ## Notes
 
-- `streamlit_app.py` is no longer needed for the Vercel deployment path.
-- `render.yaml` is now legacy and can be ignored if you are only deploying on Vercel.
+- This repo is now using the Vercel single-service path only.

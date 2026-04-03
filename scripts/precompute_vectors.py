@@ -15,7 +15,7 @@ from app.services.llm_service import is_gemini_configured  # noqa: E402
 def main():
     if not is_gemini_configured():
         raise SystemExit(
-            "GEMINI_API_KEY is not set. Render backend builds need this so the SOP vector cache can be precomputed."
+            "GEMINI_API_KEY is not set. The Vercel build needs this so the SOP vector cache can be precomputed."
         )
 
     print("Precomputing SBI SOP vector cache...")

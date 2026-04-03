@@ -5,7 +5,7 @@
   "functions": {
     "index.py": {
       "maxDuration": 60,
-      "excludeFiles": "{.git/**,.claude/**,logs/**,render.yaml,requirements-frontend.txt,streamlit_app.py,venv/**,__pycache__/**,app/**/__pycache__/**}"
+      "excludeFiles": "{.git/**,.claude/**,logs/**,venv/**,__pycache__/**,app/**/__pycache__/**}"
     }
   }
 }

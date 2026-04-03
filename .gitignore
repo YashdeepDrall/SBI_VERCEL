@@ -19,9 +19,6 @@ env/
 *.swp
 *.swo
 
-# Streamlit
-.streamlit/
-
 # OS generated files
 .DS_Store
 Thumbs.db
