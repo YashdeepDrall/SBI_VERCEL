@@ -1,11 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pip install -r requirements-backend.txt",
-  "buildCommand": "python scripts/precompute_vectors.py",
-  "functions": {
-    "index.py": {
-      "maxDuration": 60,
-      "excludeFiles": "{.git/**,.claude/**,logs/**,venv/**,__pycache__/**,app/**/__pycache__/**}"
-    }
-  }
+  "buildCommand": "python scripts/precompute_vectors.py"
 }
