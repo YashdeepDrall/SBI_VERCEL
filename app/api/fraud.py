@@ -1,9 +1,11 @@
 import datetime
 import os
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.core.config import BASE_DIR, BANKS_DIR, SBI_BANK_ID, SBI_BANK_NAME
 from app.db.mongodb import cases_collection, chat_logs_collection, documents_collection, fs
@@ -12,6 +14,19 @@ from app.services.fraud_service import detect_fraud, generate_investigation_repo
 
 
 router = APIRouter()
+
+
+class ConversationState(BaseModel):
+    step: str | None = None
+    analysis: dict[str, Any] = Field(default_factory=dict)
+    case_query: str | None = None
+    sessionId: str | None = None
+
+
+class ChatTurnRequest(BaseModel):
+    userId: str
+    query: str
+    state: ConversationState | None = None
 
 
 def get_last_chat(user_id, session_id):
@@ -97,6 +112,7 @@ def fetch_relevant_documents(bank_id):
                 "name": file_name,
                 "path": file_path,
                 "fileId": file_id,
+                "downloadUrl": f"/documents/{file_id}" if file_id else "",
             }
         )
 
@@ -143,22 +159,14 @@ def _normalize_choice(text):
     return None
 
 
-@router.get("/fraud")
-def fraud_chat(userId: str, query: str, sessionId: str | None = None):
-    try:
-        bank_id = verify_user(userId)
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail=str(exc))
+def _run_chat_turn(user_id, bank_id, query, step=None, analysis=None, case_query=None, session_id=None):
+    if not session_id:
+        session_id = f"{user_id}_{uuid.uuid4().hex}"
 
-    if not sessionId:
-        sessionId = f"{userId}_{uuid.uuid4().hex}"
-
-    last_chat = get_last_chat(userId, sessionId)
-    step = last_chat["step"] if last_chat else None
     response = ""
     next_step = None
-    analysis = last_chat.get("analysis") if last_chat else None
-    case_query = last_chat.get("case_query") if last_chat else None
+    analysis = analysis if isinstance(analysis, dict) else {}
+    case_query = case_query if isinstance(case_query, str) and case_query.strip() else None
     documents = []
 
     choice = _normalize_choice(query)
@@ -166,7 +174,7 @@ def fraud_chat(userId: str, query: str, sessionId: str | None = None):
 
     if step in followup_steps and choice is None:
         step = None
-        analysis = None
+        analysis = {}
         case_query = None
 
     if not step or step == "conversation_end":
@@ -279,12 +287,12 @@ I did not get a clear Yes/No. Please reply Yes or No.
 
     elif step == "final_assistance":
         if choice == "yes":
-            response = "Okay😊 Please provide details about the case."
+            response = "Okay. Please provide details about the case."
             next_step = "conversation_end"
 
         elif choice == "no":
             response = (
-                "Thank you for using the SBI Fraud Investigation Assistant😊. "
+                "Thank you for using the SBI Fraud Investigation Assistant. "
                 "If you need help again, just type the case details anytime and I will be ready to assist."
             )
             next_step = "conversation_end"
@@ -293,21 +301,90 @@ I did not get a clear Yes/No. Please reply Yes or No.
             response = "I did not get a clear Yes/No. Please reply Yes or No."
             next_step = "final_assistance"
 
-    save_chat_log(userId, bank_id, sessionId, query, response, next_step, analysis, case_query)
-
     fraud_category = analysis.get("fraud_category") if isinstance(analysis, dict) else ""
 
     return {
-        "user": userId,
+        "user": user_id,
         "bank": bank_id,
         "query": query,
         "fraud_analysis": analysis,
         "chatbot_response": response,
         "next_step": next_step,
-        "sessionId": sessionId,
+        "sessionId": session_id,
         "fraud_category": fraud_category,
         "documents": documents,
+        "conversation_state": {
+            "step": next_step,
+            "analysis": analysis if isinstance(analysis, dict) else {},
+            "case_query": case_query,
+            "sessionId": session_id,
+        },
     }
+
+
+@router.get("/fraud")
+def fraud_chat(userId: str, query: str, sessionId: str | None = None):
+    try:
+        bank_id = verify_user(userId)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    if not sessionId:
+        sessionId = f"{userId}_{uuid.uuid4().hex}"
+
+    last_chat = get_last_chat(userId, sessionId)
+    step = last_chat["step"] if last_chat else None
+    analysis = last_chat.get("analysis") if last_chat else None
+    case_query = last_chat.get("case_query") if last_chat else None
+
+    result = _run_chat_turn(
+        user_id=userId,
+        bank_id=bank_id,
+        query=query,
+        step=step,
+        analysis=analysis,
+        case_query=case_query,
+        session_id=sessionId,
+    )
+
+    save_chat_log(
+        userId,
+        bank_id,
+        result["sessionId"],
+        query,
+        result["chatbot_response"],
+        result["next_step"],
+        result["fraud_analysis"],
+        result["conversation_state"]["case_query"],
+    )
+
+    return result
+
+
+@router.post("/chat")
+def fraud_chat_turn(request: ChatTurnRequest):
+    user_id = request.userId.strip()
+    query = request.query.strip()
+
+    if not user_id or not query:
+        raise HTTPException(status_code=400, detail="userId and query are required")
+
+    try:
+        bank_id = verify_user(user_id)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    state = request.state or ConversationState()
+
+    return _run_chat_turn(
+        user_id=user_id,
+        bank_id=bank_id,
+        query=query,
+        step=state.step,
+        analysis=state.analysis,
+        case_query=state.case_query,
+        session_id=state.sessionId,
+    )
 
 
 @router.post("/login")

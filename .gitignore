@@ -68,4 +68,4 @@ local_cache/
 
 # Project Data
 # Ignore actual PDFs in the banks folder to keep SOPs private
-banks/*.pdf
+banks/**/*.pdf

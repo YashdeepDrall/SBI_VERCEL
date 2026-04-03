@@ -102,15 +102,15 @@ class InMemoryGridFS:
     def __init__(self):
         self._files = {}
 
-    def put(self, file_obj, filename, bankId):
-        file_id = uuid.uuid4().hex
-        self._files[file_id] = {
-            "_id": file_id,
+    def put(self, file_obj, filename, bankId, file_id=None):
+        resolved_file_id = str(file_id or uuid.uuid4().hex)
+        self._files[resolved_file_id] = {
+            "_id": resolved_file_id,
             "filename": filename,
             "bankId": bankId,
             "content": file_obj.read(),
         }
-        return file_id
+        return resolved_file_id
 
     def find_one(self, query):
         for file_data in self._files.values():

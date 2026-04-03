@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -85,8 +86,14 @@ def build_document_chunks(text):
     return [chunk for chunk in chunks if chunk.strip()]
 
 
+def _stable_file_id(bank_id, file_name):
+    digest = hashlib.sha256(f"{bank_id}:{file_name}".encode("utf-8")).hexdigest()
+    return digest[:32]
+
+
 def store_pdf(file_path, bank_id=SBI_BANK_ID):
     file_name = os.path.basename(file_path)
+    file_id = _stable_file_id(bank_id, file_name)
 
     existing = documents_collection.find_one(
         {
@@ -100,7 +107,7 @@ def store_pdf(file_path, bank_id=SBI_BANK_ID):
         return existing["fileId"]
 
     with open(file_path, "rb") as file_obj:
-        file_id = str(fs.put(file_obj, filename=file_name, bankId=bank_id))
+        file_id = str(fs.put(file_obj, filename=file_name, bankId=bank_id, file_id=file_id))
 
     documents_collection.update_one(
         {
